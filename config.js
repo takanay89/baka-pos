@@ -13,7 +13,7 @@ window.POS_CONFIG = {
   
   // ⚠️ ЗАМЕНИТЕ на ваш anon public key
   // Где взять: Supabase Dashboard → Settings → API → anon public
-  SUPABASE_KEY: "ВСТАВЬТЕ_СЮДА_ВАШ_ANON_PUBLIC_KEY",
+  SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wd3l6ZWZrYXpiZ25hc3RjYWhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NDg4NTUsImV4cCI6MjA4NTAyNDg1NX0.9bcksevoXtniNvcUiFYhcmWzd8xHDmsY75FJljPO-_4",
   
   // ┌─────────────────────────────────────────┐
   // │ ID КОМПАНИИ                             │
