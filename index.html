@@ -13,15 +13,60 @@
 </head>
 <body>
   <script>
-    (function() {
+    (async function() {
+      const SUPABASE_URL = "https://mpwyzefkazbgnastcahd.supabase.co";
+      const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wd3l6ZWZrYXpiZ25hc3RjYWhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NDg4NTUsImV4cCI6MjA4NTAyNDg1NX0.9bcksevoXtniNvcUiFYhcmWzd8xHDmsY75FJljPO-_4";
+      const COMPANY_ID = "18b94000-046c-476b-a0f9-ab813e57e3d7";
+      
+      // Check for Magic Link token in URL
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      
+      if (accessToken) {
+        // Magic Link callback - process token
+        try {
+          const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          const { data: { user }, error } = await db.auth.getUser(accessToken);
+          
+          if (user && !error) {
+            const userData = {
+              id: user.id,
+              email: user.email,
+              name: user.user_metadata?.name || user.email.split('@')[0],
+              company_id: COMPANY_ID,
+              role: 'admin'
+            };
+            localStorage.setItem('kassir_user', JSON.stringify(userData));
+            window.CURRENT_USER = userData;
+            window.COMPANY_ID = COMPANY_ID;
+            // Clear hash from URL
+            history.replaceState(null, '', window.location.pathname);
+            return; // Continue loading app
+          }
+        } catch (e) {
+          console.error('Magic link error:', e);
+        }
+      }
+      
+      // Normal auth check
       const savedUser = localStorage.getItem('kassir_user');
-      if (!savedUser) { window.location.replace('login.html'); return; }
+      if (!savedUser) { 
+        window.location.replace('login.html'); 
+        return; 
+      }
       try {
         const user = JSON.parse(savedUser);
-        if (!user.id || !user.company_id) { localStorage.removeItem('kassir_user'); window.location.replace('login.html'); return; }
+        if (!user.id || !user.company_id) { 
+          localStorage.removeItem('kassir_user'); 
+          window.location.replace('login.html'); 
+          return; 
+        }
         window.CURRENT_USER = user;
         window.COMPANY_ID = user.company_id;
-      } catch(e) { localStorage.clear(); window.location.replace('login.html'); }
+      } catch(e) { 
+        localStorage.clear(); 
+        window.location.replace('login.html'); 
+      }
     })();
   </script>
 
