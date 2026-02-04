@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>POS Kassir</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <script>
+    (function() {
+      const savedUser = localStorage.getItem('kassir_user');
+      if (!savedUser) { window.location.replace('login.html'); return; }
+      try {
+        const user = JSON.parse(savedUser);
+        if (!user.id || !user.company_id) { localStorage.removeItem('kassir_user'); window.location.replace('login.html'); return; }
+        window.CURRENT_USER = user;
+        window.COMPANY_ID = user.company_id;
+      } catch(e) { localStorage.clear(); window.location.replace('login.html'); }
+    })();
+  </script>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Подключение...</span>
+  </div>
+
+  <!-- TOP HEADER -->
+  <header class="top-header">
+    <div class="store-selector">
+      <span class="selector-label">Торговая точка:</span>
+      <select id="storeSelect" class="store-select"><option value="main">Основная</option></select>
+    </div>
+    <div class="user-profile">
+      <span class="user-name" id="userName">Пользователь</span>
+      <button class="btn-logout" onclick="logout()">Выход</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo"><div class="logo-icon">K</div><span class="logo-text">Kassir</span></div>
+    </div>
+    <div class="nav-items">
+      <button class="nav-item active" data-section="trading" onclick="showSection('trading')"><span class="nav-icon">🛒</span><span class="nav-label">Торговля</span></button>
+      <button class="nav-item" data-section="products" onclick="showSection('products')"><span class="nav-icon">📦</span><span class="nav-label">Товары</span></button>
+      <button class="nav-item" data-section="suppliers" onclick="showSection('suppliers')"><span class="nav-icon">🚚</span><span class="nav-label">Поставщики</span></button>
+      <button class="nav-item" data-section="clients" onclick="showSection('clients')"><span class="nav-icon">👥</span><span class="nav-label">Клиенты</span></button>
+      <button class="nav-item" data-section="expenses" onclick="showSection('expenses')"><span class="nav-icon">💸</span><span class="nav-label">Расходы</span></button>
+      <button class="nav-item" data-section="reports" onclick="showSection('reports')"><span class="nav-icon">📊</span><span class="nav-label">Отчёты</span></button>
+      <button class="nav-item" data-section="money" onclick="showSection('money')"><span class="nav-icon">💰</span><span class="nav-label">Деньги</span></button>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <!-- TRADING -->
+    <section class="section active" id="section-trading">
+      <div class="section-header"><h1 class="section-title">Торговля</h1></div>
+      <div class="tabs">
+        <button class="tab active" onclick="setMode('sale')">Продажа</button>
+        <button class="tab" onclick="setMode('receive')">Приход</button>
+        <button class="tab" onclick="setMode('return')">Возврат</button>
+        <button class="tab" onclick="setMode('writeoff')">Списание</button>
+        <button class="tab" onclick="setMode('supplier_return')">Возврат поставщику</button>
+      </div>
+      <div class="trading-grid">
+        <div class="trading-left">
+          <div class="card mini-report-card" id="miniReportCard">
+            <div class="card-title" id="miniReportTitle">Продажи за день</div>
+            <div class="period-buttons">
+              <button class="period-btn active" data-period="day" onclick="changePeriod('day')">День</button>
+              <button class="period-btn" data-period="week" onclick="changePeriod('week')">Неделя</button>
+              <button class="period-btn" data-period="month" onclick="changePeriod('month')">Месяц</button>
+            </div>
+            <div class="mini-report-stats">
+              <div class="mini-stat"><span class="mini-stat-label">Операций</span><span class="mini-stat-value" id="miniReportCount">0</span></div>
+              <div class="mini-stat"><span class="mini-stat-label">Сумма</span><span class="mini-stat-value" id="miniReportSum">0 ₸</span></div>
+            </div>
+            <div class="mini-operations-list" id="miniOperationsList"></div>
+          </div>
+          <div class="card" id="searchCard">
+            <div class="card-title" id="modeTitle">Продажа</div>
+            <div class="search-box">
+              <input type="text" id="searchInput" placeholder="Поиск товара..." class="input" autocomplete="off">
+              <button class="btn-icon" onclick="openScanner()">📷</button>
+            </div>
+            <div id="suggestions" class="suggestions"></div>
+          </div>
+          <div class="card" id="returnSearchBlock" style="display:none;">
+            <div class="card-title">🔍 Найти продажу для возврата</div>
+            <div class="search-box"><input type="text" id="returnSearchInput" placeholder="Поиск продажи..." class="input" autocomplete="off"></div>
+            <div id="returnResults" class="return-results"></div>
+          </div>
+          <div class="card" id="supplierBlock" style="display:none;">
+            <div class="card-title">Поставщик <span class="required">*</span></div>
+            <select id="supplierSelect" class="input"><option value="">Выберите поставщика</option></select>
+            <button class="btn-secondary" onclick="openNewSupplier()" style="margin-top:12px;">+ Новый поставщик</button>
+          </div>
+          <div class="card" id="saleDetailsCard">
+            <div class="card-title">Детали продажи</div>
+            <label class="label">Клиент (необязательно)</label>
+            <input type="text" id="clientNameInput" placeholder="Имя клиента" class="input" autocomplete="off">
+            <div id="clientSuggestions" class="suggestions"></div>
+            <label class="label" style="margin-top:12px;">Скидка</label>
+            <div class="discount-row">
+              <input type="number" id="discountPercent" placeholder="%" class="input" style="width:80px;" min="0" max="100">
+              <span class="discount-or">или</span>
+              <input type="number" id="discountAmount" placeholder="₸" class="input" style="width:120px;" min="0">
+            </div>
+            <div class="discount-display">Скидка: <strong id="discountDisplay">0 ₸</strong></div>
+          </div>
+        </div>
+        <div class="trading-right">
+          <div class="card"><div class="card-title">Чек</div><div id="cart" class="cart"></div></div>
+          <div class="card" id="paymentBlock">
+            <div class="card-title">Способ оплаты</div>
+            <label class="radio-label"><input type="radio" name="paymentMethod" value="cash" checked><span>Нал</span></label>
+            <label class="radio-label"><input type="radio" name="paymentMethod" value="card"><span>Безнал</span></label>
+          </div>
+          <div class="card"><label class="label">Комментарий</label><input type="text" id="commentInput" placeholder="Kaspi, Halyk и т.д." class="input"></div>
+          <div class="total-card"><span>ИТОГО:</span><strong id="totalAmount">0 ₸</strong></div>
+          <button class="btn-primary btn-action" onclick="submitOperation()"><span id="actionBtn">ПРОДАТЬ</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCTS -->
+    <section class="section" id="section-products">
+      <div class="section-header">
+        <h1 class="section-title">Товары и услуги</h1>
+        <div class="header-actions">
+          <button class="btn-secondary" onclick="openNewProduct('product')">+ Товар</button>
+          <button class="btn-secondary" onclick="openNewProduct('service')">+ Услуга</button>
+          <button class="btn-secondary" onclick="openImportModal()">📥 Импорт</button>
+        </div>
+      </div>
+      <div class="card">
+        <input type="text" id="productSearchInput" placeholder="Поиск..." class="input" oninput="filterProducts()">
+        <div id="productsList" class="products-list"></div>
+      </div>
+    </section>
+
+    <!-- SUPPLIERS -->
+    <section class="section" id="section-suppliers">
+      <div class="section-header">
+        <h1 class="section-title">Поставщики</h1>
+        <button class="btn-secondary" onclick="openNewSupplier()">+ Новый поставщик</button>
+      </div>
+      <div class="card">
+        <input type="text" id="supplierSearchInput" placeholder="Поиск..." class="input" oninput="filterSuppliers()">
+        <div id="suppliersList" class="suppliers-list"></div>
+      </div>
+    </section>
+
+    <!-- CLIENTS -->
+    <section class="section" id="section-clients">
+      <div class="section-header">
+        <h1 class="section-title">Клиенты</h1>
+        <button class="btn-secondary" onclick="openNewClient()">+ Новый клиент</button>
+      </div>
+      <div class="card">
+        <input type="text" id="clientSearchInput" placeholder="Поиск..." class="input" oninput="filterClients()">
+        <div id="clientsList" class="clients-list"></div>
+      </div>
+    </section>
+
+    <!-- EXPENSES -->
+    <section class="section" id="section-expenses">
+      <div class="section-header">
+        <h1 class="section-title">Расходы</h1>
+        <button class="btn-secondary" onclick="openNewExpense()">+ Новый расход</button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="showExpenseTab('list')">Список</button>
+        <button class="tab" onclick="showExpenseTab('categories')">Категории</button>
+      </div>
+      <div class="card" id="expensesListCard">
+        <div class="filter-row">
+          <div class="filter-group"><label class="label">С</label><input type="date" id="expenseDateFrom" class="input"></div>
+          <div class="filter-group"><label class="label">По</label><input type="date" id="expenseDateTo" class="input"></div>
+          <div class="filter-group"><label class="label">Категория</label><select id="expenseCategoryFilter" class="input"><option value="">Все</option></select></div>
+          <button class="btn-secondary" onclick="loadExpenses()" style="align-self:flex-end;">Показать</button>
+        </div>
+        <div id="expensesList" class="expenses-list"></div>
+      </div>
+      <div class="card" id="expenseCategoriesCard" style="display:none;">
+        <button class="btn-secondary" onclick="openNewCategory()">+ Категория</button>
+        <div id="categoriesList" class="categories-list"></div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="section" id="section-reports">
+      <div class="section-header"><h1 class="section-title">Отчёты</h1></div>
+      <div class="card">
+        <div class="filter-row">
+          <div class="filter-group"><label class="label">С</label><input type="date" id="reportDateFrom" class="input"></div>
+          <div class="filter-group"><label class="label">По</label><input type="date" id="reportDateTo" class="input"></div>
+          <button class="btn-primary" onclick="loadReports()" style="align-self:flex-end;">Показать</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="showReportTab('summary')">Сводка</button>
+        <button class="tab" onclick="showReportTab('bydays')">По дням</button>
+        <button class="tab" onclick="showReportTab('byproducts')">По товарам</button>
+        <button class="tab" onclick="showReportTab('money')">Деньги</button>
+        <button class="tab" onclick="showReportTab('pnl')">P&L</button>
+        <button class="tab" onclick="showReportTab('history')">История</button>
+      </div>
+      <div id="reportContent"></div>
+    </section>
+
+    <!-- MONEY -->
+    <section class="section" id="section-money">
+      <div class="section-header"><h1 class="section-title">Деньги</h1></div>
+      <div class="stats-grid">
+        <div class="stat-card purple"><div class="stat-label">Наличные</div><div class="stat-value" id="balanceCash">0 ₸</div></div>
+        <div class="stat-card teal"><div class="stat-label">Безнал</div><div class="stat-value" id="balanceCard">0 ₸</div></div>
+        <div class="stat-card green"><div class="stat-label">Итого</div><div class="stat-value" id="balanceTotal">0 ₸</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Начальный баланс</div>
+        <div class="initial-balance-row">
+          <div class="initial-balance-item"><label class="label">Наличные</label><input type="number" id="initialCash" class="input" value="0"></div>
+          <div class="initial-balance-item"><label class="label">Безнал</label><input type="number" id="initialCard" class="input" value="0"></div>
+          <button class="btn-secondary" onclick="saveInitialBalance()">Сохранить</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Операции</div>
+        <div class="header-actions" style="margin-bottom:16px;">
+          <button class="btn-secondary" onclick="openMoneyOperation('deposit')">+ Внести</button>
+          <button class="btn-secondary" onclick="openMoneyOperation('withdraw')">− Изъять</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">История</div>
+        <div class="filter-row">
+          <div class="filter-group"><label class="label">С</label><input type="date" id="moneyDateFrom" class="input"></div>
+          <div class="filter-group"><label class="label">По</label><input type="date" id="moneyDateTo" class="input"></div>
+          <button class="btn-secondary" onclick="loadMoneyHistory()">Показать</button>
+        </div>
+        <div id="moneyHistoryList" class="money-history"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MOBILE NAV -->
+  <nav class="mobile-nav">
+    <button class="mobile-nav-item active" data-section="trading" onclick="showSection('trading')"><span class="mobile-nav-icon">🛒</span><span class="mobile-nav-label">Торговля</span></button>
+    <button class="mobile-nav-item" data-section="products" onclick="showSection('products')"><span class="mobile-nav-icon">📦</span><span class="mobile-nav-label">Товары</span></button>
+    <button class="mobile-nav-item" data-section="expenses" onclick="showSection('expenses')"><span class="mobile-nav-icon">💸</span><span class="mobile-nav-label">Расходы</span></button>
+    <button class="mobile-nav-item" data-section="reports" onclick="showSection('reports')"><span class="mobile-nav-icon">📊</span><span class="mobile-nav-label">Отчёты</span></button>
+    <button class="mobile-nav-item" data-section="money" onclick="showSection('money')"><span class="mobile-nav-icon">💰</span><span class="mobile-nav-label">Деньги</span></button>
+  </nav>
+
+  <!-- MODALS -->
+  <div class="modal" id="productModal">
+    <div class="modal-content">
+      <div class="modal-header"><h2 id="productModalTitle">Товар</h2><button class="modal-close" onclick="closeModal('productModal')">✕</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="productId">
+        <label class="label">Название *</label><input type="text" id="productName" class="input">
+        <div class="form-row">
+          <div><label class="label">SKU</label><input type="text" id="productSku" class="input"></div>
+          <div><label class="label">Штрихкод</label><input type="text" id="productBarcode" class="input"></div>
+        </div>
+        <div class="form-row">
+          <div><label class="label">Тип</label><select id="productType" class="input"><option value="product">Товар</option><option value="service">Услуга</option></select></div>
+          <div><label class="label">Ед.</label><select id="productUnit" class="input"><option value="шт">шт</option><option value="кг">кг</option><option value="л">л</option><option value="м">м</option></select></div>
+        </div>
+        <div class="form-row">
+          <div><label class="label">Себестоимость</label><input type="number" id="productPurchasePrice" class="input"></div>
+          <div><label class="label">Цена *</label><input type="number" id="productSalePrice" class="input"></div>
+        </div>
+        <div id="productQtyGroup"><label class="label">Остаток</label><input type="number" id="productQty" class="input" value="0"></div>
+        <div id="productStatusGroup" style="display:none;"><label class="label">Статус</label><select id="productActive" class="input"><option value="true">Активен</option><option value="false">Архив</option></select></div>
+        <button class="btn-primary" onclick="saveProduct()">СОХРАНИТЬ</button>
+        <button class="btn-danger" id="deleteProductBtn" onclick="deleteProduct()" style="display:none;">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="supplierModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header"><h2 id="supplierModalTitle">Поставщик</h2><button class="modal-close" onclick="closeModal('supplierModal')">✕</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="supplierId">
+        <label class="label">Название *</label><input type="text" id="supplierName" class="input">
+        <label class="label">Телефон</label><input type="text" id="supplierPhone" class="input">
+        <label class="label">Комментарий</label><textarea id="supplierComment" class="input textarea"></textarea>
+        <div id="supplierStatusGroup" style="display:none;"><label class="label">Статус</label><select id="supplierActive" class="input"><option value="true">Активен</option><option value="false">Архив</option></select></div>
+        <button class="btn-primary" onclick="saveSupplier()">СОХРАНИТЬ</button>
+        <button class="btn-danger" id="deleteSupplierBtn" onclick="deleteSupplier()" style="display:none;">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="clientModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header"><h2 id="clientModalTitle">Клиент</h2><button class="modal-close" onclick="closeModal('clientModal')">✕</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="clientId">
+        <label class="label">Имя *</label><input type="text" id="clientName" class="input">
+        <label class="label">Телефон</label><input type="text" id="clientPhone" class="input">
+        <label class="label">Комментарий</label><textarea id="clientComment" class="input textarea"></textarea>
+        <button class="btn-primary" onclick="saveClient()">СОХРАНИТЬ</button>
+        <button class="btn-danger" id="deleteClientBtn" onclick="deleteClient()" style="display:none;">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="clientHistoryModal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header"><h2 id="clientHistoryTitle">История</h2><button class="modal-close" onclick="closeModal('clientHistoryModal')">✕</button></div>
+      <div class="modal-body"><div id="clientHistoryContent"></div></div>
+    </div>
+  </div>
+
+  <div class="modal" id="expenseModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header"><h2>Расход</h2><button class="modal-close" onclick="closeModal('expenseModal')">✕</button></div>
+      <div class="modal-body">
+        <label class="label">Категория *</label><select id="expenseCategory" class="input"><option value="">Выберите</option></select>
+        <label class="label">Сумма *</label><input type="number" id="expenseAmount" class="input">
+        <label class="label">Способ</label><select id="expensePaymentMethod" class="input"><option value="cash">Нал</option><option value="card">Безнал</option></select>
+        <label class="label">Описание</label><input type="text" id="expenseDescription" class="input">
+        <button class="btn-primary" onclick="saveExpense()">ДОБАВИТЬ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="categoryModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header"><h2>Категория</h2><button class="modal-close" onclick="closeModal('categoryModal')">✕</button></div>
+      <div class="modal-body">
+        <label class="label">Название *</label><input type="text" id="categoryName" class="input">
+        <label class="label">Цвет</label><input type="color" id="categoryColor" class="input color-input" value="#ef4444">
+        <button class="btn-primary" onclick="saveCategory()">СОЗДАТЬ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="moneyModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header"><h2 id="moneyModalTitle">Операция</h2><button class="modal-close" onclick="closeModal('moneyModal')">✕</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="moneyOperationType">
+        <label class="label">Сумма *</label><input type="number" id="moneyAmount" class="input">
+        <label class="label">Способ</label><select id="moneyPaymentMethod" class="input"><option value="cash">Нал</option><option value="card">Безнал</option></select>
+        <label class="label">Комментарий</label><input type="text" id="moneyComment" class="input">
+        <button class="btn-primary" onclick="saveMoneyOperation()">ПОДТВЕРДИТЬ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="importModal">
+    <div class="modal-content">
+      <div class="modal-header"><h2>Импорт Excel</h2><button class="modal-close" onclick="closeModal('importModal')">✕</button></div>
+      <div class="modal-body">
+        <p class="modal-hint">Формат: Тип | Название | SKU | Кол-во | Себест. | Цена</p>
+        <input type="file" id="importFile" class="input" accept=".xlsx,.xls,.csv">
+        <button class="btn-primary" onclick="importProducts()">ИМПОРТ</button>
+        <div id="importResults" style="margin-top:16px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="adminPasswordModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header"><h2>Удаление</h2><button class="modal-close" onclick="closeModal('adminPasswordModal')">✕</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="deleteOperationId"><input type="hidden" id="deleteOperationType">
+        <p class="modal-hint">Введите пароль администратора</p>
+        <input type="password" id="adminPassword" class="input">
+        <button class="btn-danger" onclick="confirmDelete()">УДАЛИТЬ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="scanner-overlay" id="scannerOverlay">
+    <video id="scannerVideo" autoplay playsinline></video>
+    <button class="scanner-close" onclick="closeScanner()">Закрыть</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if (window.CURRENT_USER) document.getElementById('userName').textContent = window.CURRENT_USER.name || window.CURRENT_USER.email || 'Пользователь';
+    
+    async function logout() { 
+      if (confirm('Выйти из системы?')) { 
+        // Clear Supabase session if exists
+        try {
+          const SUPABASE_URL = "https://mpwyzefkazbgnastcahd.supabase.co";
+          const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wd3l6ZWZrYXpiZ25hc3RjYWhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NDg4NTUsImV4cCI6MjA4NTAyNDg1NX0.9bcksevoXtniNvcUiFYhcmWzd8xHDmsY75FJljPO-_4";
+          const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          await db.auth.signOut();
+        } catch (e) { console.log('Logout:', e); }
+        
+        localStorage.removeItem('kassir_user'); 
+        window.location.replace('login.html'); 
+      } 
+    }
+    
+    // Check role for admin features
+    function isAdmin() {
+      return window.CURRENT_USER && window.CURRENT_USER.role === 'admin';
+    }
+    
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.log('SW:', e));
+  </script>
+</body>
+</html>
